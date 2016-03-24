@@ -115,7 +115,7 @@ function handleCriticality(currentPercent, currentState)
 end
 
 function getAllValuesFromProperties()
-   local upower_stat = awful.util.pread('dbus-send --print-reply --system --dest=org.freedesktop.UPower /org/freedesktop/UPower/devices/DisplayDevice org.freedesktop.DBus.Properties.GetAll string:""')
+   local upower_stat = awful.util.pread('dbus-send --print-reply --system --dest=org.freedesktop.UPower /org/freedesktop/UPower/devices/DisplayDevice org.freedesktop.DBus.Properties.GetAll string:"org.freedesktop.UPower.Device"')
 
    local currentState = string.match(upower_stat, "\"State\".-uint32 ([0-9]+)")
    currentState = tonumber(currentState)
