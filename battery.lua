@@ -78,11 +78,11 @@ function handleState(newAcOnline)
    if battery.oldACOnline ~= null and battery.oldACOnline ~= newAcOnline then
       changed = true
       if newAcOnline then
-         awful.util.spawn("aplay " .. soundOnACState)
-         awful.util.spawn("xbacklight -set " .. brightnessOnAC)
+         awful.spawn("aplay " .. soundOnACState)
+         awful.spawn("xbacklight -set " .. brightnessOnAC)
       else
-         awful.util.spawn("aplay " .. soundOnBatteryState)
-         awful.util.spawn("xbacklight -set " .. brighnessOnBattery)
+         awful.spawn("aplay " .. soundOnBatteryState)
+         awful.spawn("xbacklight -set " .. brighnessOnBattery)
       end
    end
 
@@ -114,9 +114,7 @@ function handleCriticality(currentPercent, currentState)
    return changed
 end
 
-function getAllValuesFromProperties()
-   local upower_stat = awful.util.pread('dbus-send --print-reply --system --dest=org.freedesktop.UPower /org/freedesktop/UPower/devices/DisplayDevice org.freedesktop.DBus.Properties.GetAll string:"org.freedesktop.UPower.Device"')
-
+function getAllValuesFromProperties(upower_stat)
    local currentState = string.match(upower_stat, "\"State\".-uint32 ([0-9]+)")
    currentState = tonumber(currentState)
 
@@ -129,17 +127,28 @@ function getAllValuesFromProperties()
    local currentTimeToFull = string.match(upower_stat, "\"TimeToFull\".-int64 ([0-9]+)")
    currentTimeToFull = tonumber(currentTimeToFull)
 
-   local currentAcState = getAcStateFromSys()
 
-   return currentAcState, currentState, currentPercent, currentTimeToEmpty, currentTimeToFull
+   return currentState, currentPercent, currentTimeToEmpty, currentTimeToFull
 end
 
-function battery.getTextString()
-   local currentAcState, currentState, currentPercent, currentTimeToEmpty, currentTimeToFull = getAllValuesFromProperties()
-   handleState(currentAcState)
-   handleCriticality(currentPercent, currentState)
-   return createTextString(currentAcState, currentState, currentPercent, currentTimeToEmpty, currentTimeToFull)
+function battery.getTextString(batterywidget)
+   return awful.spawn.easy_async('dbus-send --print-reply --system --dest=org.freedesktop.UPower /org/freedesktop/UPower/devices/DisplayDevice org.freedesktop.DBus.Properties.GetAll string:"org.freedesktop.UPower.Device"', 
+        function(stdout, stderr, reason, exit_code) 
+           return awful.spawn.easy_async('cat /sys/class/power_supply/AC/online',
+              function(stdout_proc, stderr_proc, reason_proc, exit_code_proc)
+                 local currentAcState = getAcStateFromSys(stdout_proc)
+                 local currentState, currentPercent, currentTimeToEmpty, currentTimeToFull = getAllValuesFromProperties(stdout)
+                 handleState(currentAcState)
+                 handleCriticality(currentPercent, currentState)
+                 local widget_text = createTextString(currentAcState, currentState, currentPercent, currentTimeToEmpty, currentTimeToFull)
+                 batterywidget:set_markup(widget_text)
+                 return 
+              end
+           )
+        end
+   )
 end
+
 
 function createTextString(currentAcState, currentState, currentPercent, currentTimeToEmpty, currentTimeToFull)
    battery.oldState = currentState
@@ -166,8 +175,7 @@ function createTextString(currentAcState, currentState, currentPercent, currentT
 end
 
 
-function getAcStateFromSys()
-   local acStateString = awful.util.pread('cat /sys/class/power_supply/AC/online')
+function getAcStateFromSys(acStateString)
    return (tonumber(acStateString) == 1)
 end
 
